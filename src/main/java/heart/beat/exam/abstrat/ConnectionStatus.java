@@ -1,0 +1,9 @@
+package heart.beat.exam.abstrat;
+
+public enum ConnectionStatus {
+	CONNECTION_ESTABLISHED, 
+	CONNECTION_TERMINATED, 
+	CONNECTION_REESTABLISHED,
+	CONNECTION_RETRYING,
+	CONNECTION_LOST;
+}
