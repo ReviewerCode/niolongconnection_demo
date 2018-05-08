@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.SocketChannel;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,6 +38,13 @@ public class NIOClient {
 			AbstractConnection ac = new ServerEndpoint(chn);
 			GlobalConnectionCache.put(address.toString(), ac);
 			log.info("本地端口：" + chn.socket().getLocalPort());
+		}
+	}
+
+	public void stop() {
+		Collection<AbstractConnection> all = GlobalConnectionCache.getAll();
+		for (AbstractConnection ac : all) {
+			ac.deConstructor();
 		}
 	}
 }

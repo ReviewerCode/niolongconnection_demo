@@ -1,5 +1,7 @@
 package heart.beat.exam.abstrat;
 
+import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -14,5 +16,9 @@ public class GlobalConnectionCache {
 
 	public static AbstractConnection remove(String key) {
 		return CacheHolder.cache.remove(key);
+	}
+
+	public static Collection<AbstractConnection> getAll() {
+		return CacheHolder.cache.values();
 	}
 }

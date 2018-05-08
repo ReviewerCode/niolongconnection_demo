@@ -20,29 +20,21 @@ public abstract class AbstractConnection {
 	private AtomicBoolean cached = new AtomicBoolean(false);
 	private ByteBuffer cacheBuffer = ByteBuffer.allocate(1024);
 
+	// protected constructor
 	protected AbstractConnection(SocketChannel chn) {
 		this.chn = chn;
 	}
-	
+
+	/**
+	 * -------------------------------------------------------------------------
+	 * -----------------------public method-------------------------------------
+	 * -------------------------------------------------------------------------
+	 */
 	public abstract void start();
 
-	protected void destory() {
-		this.chn = null;
-	}
+	public abstract boolean isActive();
 
-	protected boolean chnEquals(SocketChannel chn) {
-		if (null == chn) {
-			return false;
-		}
-
-		return (chn == this.chn);
-	}
-
-	protected void dispartch(Request request, SelectionKey key) {
-		if (null != request) {
-			log.info("receive from client with content : " + request.getMsg());
-		}
-	}
+	public abstract void deConstructor();
 
 	// 一个client的write事件不一定唯一对应server的read事件，所以需要缓存不完整的包，以便拼接成完整的包
 	// 包协议：包=包头(4byte)+包体，包头内容为包体的数据长度
@@ -92,7 +84,7 @@ public abstract class AbstractConnection {
 						bodyLen = -1;
 
 						Request request = SerializingUtils.deserialize(bodyByte, Request.class);
-						dispartch(request,selectionKey);
+						dispatch(request, selectionKey);
 					} else {
 						byteBuffer.reset();
 						cacheBuffer.clear();
@@ -157,15 +149,11 @@ public abstract class AbstractConnection {
 		}
 	}
 
-	protected void writeHB() {
+	protected void writeHB() throws IOException {
 		Request request = Request.buildHeartB();
 		request.setMsg("request for hb msg");
 		byte[] msg;
-		try {
-			msg = SerializingUtils.serialize(request);
-		} catch (IOException e1) {
-			throw new HeartBeatException(e1);
-		}
+		msg = SerializingUtils.serialize(request);
 
 		int bodyLen = msg.length;
 		byte[] check = SerializingUtils.intToByteArray(bodyLen);
@@ -184,4 +172,33 @@ public abstract class AbstractConnection {
 			}
 		}
 	}
+
+	// destroy this abstract connection
+	protected void destroy() {
+		if (null != chn) {
+			try {
+				chn.close();
+				chn = null;
+			} catch (IOException e) {
+				log.error("wrong occurs when closing connection");
+			}
+		}
+	}
+
+	// test whether the passed-in socket channel equals to the one within class
+	protected boolean chnEquals(SocketChannel chn) {
+		if (null == chn) {
+			return false;
+		}
+
+		return (chn == this.chn);
+	}
+
+	// dispatch the request
+	protected void dispatch(Request request, SelectionKey key) {
+		if (null != request) {
+			log.info("receive from client with content : " + request.getMsg());
+		}
+	}
+
 }

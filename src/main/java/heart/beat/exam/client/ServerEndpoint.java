@@ -14,48 +14,69 @@ import org.slf4j.LoggerFactory;
 
 import heart.beat.exam.abstrat.AbstractConnection;
 import heart.beat.exam.exceptions.ConnectionException;
+import heart.beat.exam.exceptions.HeartBeatException;
 
 public class ServerEndpoint extends AbstractConnection {
-
 	// log
 	private static final Logger log = LoggerFactory.getLogger(ServerEndpoint.class);
 
-	long checkDelay = 10;
-	long keepAliveDelay = 5000;
-	long receiveTimeDelay = 17000;
-	long lastReceiveTime;
-
-	private Selector selector;
-	private AtomicBoolean running = new AtomicBoolean(false);
-	private long lastSendTime;
-
+	static final long checkDelay = 10;
+	static final long keepAliveDelay = 5000;
+	static final long receiveTimeDelay = 17000;
 	static final int CONNECT_RETRIES = 5;
-	AtomicInteger connectCount = new AtomicInteger(0);
+	static final long CONNECT_INTERVAL_UNIT = 5 * 60 * 1000;
 
+	Selector selector;
 	Thread keepAliveWatchDog;
 	Thread receiveWatchDog;
+	long lastReceiveTime;
+	long lastSendTime;
 
-	protected void reBuildConnection() {
+	AtomicBoolean running = new AtomicBoolean(false);
+	AtomicInteger connectCount = new AtomicInteger(0);
+
+	@SuppressWarnings("deprecation")
+	public void deConstructor() {
+		if (null != keepAliveWatchDog) {
+			keepAliveWatchDog.stop();
+			keepAliveWatchDog = null;
+		}
+		if (null != receiveWatchDog) {
+			receiveWatchDog.stop();
+			receiveWatchDog = null;
+		}
+		if (null != chn) {
+			try {
+				chn.close();
+				chn = null;
+			} catch (IOException e) {
+				log.error("wrong occurs when deconstructing : " + e.getMessage());
+			}
+		}
+		selector = null;
+		running = null;
+		connectCount = null;
+	}
+
+	protected void buildConnection() {
 		try {
 			if (connectCount.get() <= CONNECT_RETRIES) {
+				Thread.sleep(connectCount.get() * CONNECT_INTERVAL_UNIT);
 				SocketAddress address = chn.getRemoteAddress();
+
 				chn = SocketChannel.open(address);
 				chn.configureBlocking(false);
-				chn.register(selector, SelectionKey.OP_READ, chn);
 				if (!running.get()) {
 					running.set(true);
 				}
-				
+
 				connectCount.incrementAndGet();
-				
-				keepAliveWatchDog = new Thread(new KeepAliveWatchDog());
-				keepAliveWatchDog.start();
-				receiveWatchDog = new Thread(new ReceiveWatchDog());
-				receiveWatchDog.start();
+				start();
+
 			} else {
 				stop();
 			}
-		} catch (IOException e) {
+		} catch (Exception e) {
 			throw new ConnectionException(e);
 		}
 
@@ -75,9 +96,14 @@ public class ServerEndpoint extends AbstractConnection {
 			chn.register(selector, SelectionKey.OP_READ, chn);
 			running.set(true);
 
-			keepAliveWatchDog = new Thread(new KeepAliveWatchDog());
+			if (null == keepAliveWatchDog) {
+				keepAliveWatchDog = new Thread(new KeepAliveWatchDog());
+			}
 			keepAliveWatchDog.start();
-			receiveWatchDog = new Thread(new ReceiveWatchDog());
+
+			if (null == receiveWatchDog) {
+				receiveWatchDog = new Thread(new ReceiveWatchDog());
+			}
 			receiveWatchDog.start();
 		} catch (IOException e) {
 			log.error("start fails... : " + e.getMessage());
@@ -97,15 +123,20 @@ public class ServerEndpoint extends AbstractConnection {
 			lastSendTime = System.currentTimeMillis();
 			while (running.get()) {
 				if (System.currentTimeMillis() - lastSendTime > keepAliveDelay) {
-					// try {
-					// writeHB();
-					// } catch (HeartBeatException e) {
-					// log.error("wrong occurs when sending heart-beat msg : " +
-					// e.getMessage());
-					// // reconnect
-					// //connect();
-					// }
-					writeHB();
+					try {
+						writeHB();
+					} catch (Exception e) {
+						if (e instanceof IOException) {
+							// 序列化异常
+							log.error("wrong occurs when serializing hb msg : " + e.getMessage());
+							continue;
+						}
+
+						if (e instanceof HeartBeatException) {
+							// 服务器断线
+							buildConnection();
+						}
+					}
 					lastSendTime = System.currentTimeMillis();
 				} else {
 					try {
@@ -150,5 +181,9 @@ public class ServerEndpoint extends AbstractConnection {
 				}
 			}
 		}
+	}
+
+	public boolean isActive() {
+		return running.get();
 	}
 }

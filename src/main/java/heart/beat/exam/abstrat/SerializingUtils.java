@@ -37,14 +37,14 @@ public class SerializingUtils {
 	public static byte[] serialize(Object obj) throws IOException {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		Hessian2Output out = new Hessian2Output(bos);
-		if (null == obj) {
-			out.writeObject(Request.buildHeartB());
-		} else {
+		if (null != obj) {
 			out.writeObject(obj);
+			out.flush();
+			byte[] data = bos.toByteArray();
+			return data;
+		} else {
+			return null;
 		}
-		out.flush();
-		byte[] data = bos.toByteArray();
-		return data;
 	}
 
 	@SuppressWarnings("unchecked")
