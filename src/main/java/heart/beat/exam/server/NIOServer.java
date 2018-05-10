@@ -88,13 +88,19 @@ public class NIOServer {
 			channel.configureBlocking(false);
 			String adderss = channel.getRemoteAddress().toString();
 			log.info("accept connection from : " + adderss);
-			AbstractConnection ac = new ClientEndpoint(channel);
+			AbstractConnection ac = new ClientEndpoint(channel, this);
 			ac.start();
 			GlobalConnectionCache.put(adderss, ac);
 		} catch (IOException e) {
 			throw new AcceptionException(e);
 		}
 
+	}
+	
+	public void stop(ClientEndpoint client){
+		String address = client.getAddress();
+		client.stop();
+		GlobalConnectionCache.remove(address);
 	}
 
 	class ConnWatchDog implements Runnable {

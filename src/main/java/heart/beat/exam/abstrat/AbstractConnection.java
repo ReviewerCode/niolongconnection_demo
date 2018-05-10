@@ -20,17 +20,21 @@ public abstract class AbstractConnection {
 	protected SocketChannel chn;
 	private AtomicBoolean cached = new AtomicBoolean(false);
 	private ByteBuffer cacheBuffer = ByteBuffer.allocate(1024);
-
+	// connect status
+	ConnectionStatus conectStatus = ConnectionStatus.CONNECTION_ESTABLISHED;
 	// deal the unknown case that if server canncel/close, client will read all
 	// time
-	private volatile boolean isLost = false;
 
-	protected void setIsLost(boolean value) {
-		isLost = value;
+	protected synchronized boolean lost() {
+		return conectStatus == ConnectionStatus.CONNECTION_LOST;
 	}
 
-	protected boolean isLost() {
-		return isLost;
+	protected void setLost() {
+		conectStatus = ConnectionStatus.CONNECTION_LOST;
+	}
+
+	protected void setConnectEstablised() {
+		conectStatus = ConnectionStatus.CONNECTION_ESTABLISHED;
 	}
 
 	// protected constructor
@@ -77,11 +81,13 @@ public abstract class AbstractConnection {
 				cached.set(false);
 			}
 			// 当前read事件
-			int z = channel.read(byteBuffer);
-			if (-1 == z) {
-				// 掉线了
+			if (-1 == channel.read(byteBuffer)) {
+				// 掉线了,有read事件,但却无数据可读.
 				selectionKey.cancel();
-				setIsLost(true);
+				synchronized (conectStatus) {
+					conectStatus = ConnectionStatus.CONNECTION_LOST;
+				}
+				log.info("connection losts");
 				return;
 			}
 			byteBuffer.flip();
@@ -219,7 +225,6 @@ public abstract class AbstractConnection {
 		if (null == chn) {
 			return false;
 		}
-
 		return (chn == this.chn);
 	}
 

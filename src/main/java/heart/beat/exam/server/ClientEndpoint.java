@@ -22,6 +22,7 @@ import heart.beat.exam.exceptions.ReadDataException;
  *
  */
 public class ClientEndpoint extends AbstractConnection {
+
 	// log
 	private static final Logger log = LoggerFactory.getLogger(ClientEndpoint.class);
 
@@ -40,8 +41,15 @@ public class ClientEndpoint extends AbstractConnection {
 
 	SocketAddress address;
 
-	public ClientEndpoint(SocketChannel chn) {
+	public String getAddress() {
+		return address.toString();
+	}
+
+	NIOServer server;
+
+	public ClientEndpoint(SocketChannel chn, NIOServer ser) {
 		super(chn);
+		server = ser;
 		try {
 			address = chn.getRemoteAddress();
 		} catch (IOException e) {
@@ -77,14 +85,8 @@ public class ClientEndpoint extends AbstractConnection {
 	protected void dispatch(Request request, SelectionKey key) {
 		log.info("接收：\t" + request.getMsg());
 		countReceived.incrementAndGet();
-		if (countReceived.get() >= MAX_COUNT_RECEIVED) {
-			killWatchDog();
-			countReceived.set(0);
-			running.set(false);
-		} else {
-			if (countReceived.get() % 3 == 0) {
-				writeHBResponse(key);
-			}
+		if (countReceived.get() % 3 == 0) {
+			writeHBResponse(key);
 		}
 	}
 
@@ -93,7 +95,7 @@ public class ClientEndpoint extends AbstractConnection {
 			lastReceiveTime = System.currentTimeMillis();
 			while (running.get()) {
 				if (System.currentTimeMillis() - lastReceiveTime > receiveTimeDelay) {
-					killWatchDog();
+					server.stop(ClientEndpoint.this);
 				} else {
 					try {
 						read0();

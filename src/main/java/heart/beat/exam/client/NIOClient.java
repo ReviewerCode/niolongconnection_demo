@@ -35,7 +35,7 @@ public class NIOClient {
 			InetSocketAddress address = new InetSocketAddress(e.getKey(), e.getValue());
 			SocketChannel chn = SocketChannel.open(address);
 			chn.configureBlocking(false);
-			AbstractConnection ac = new ServerEndpoint(chn);
+			AbstractConnection ac = new ServerEndpoint(chn, this);
 			GlobalConnectionCache.put(address.toString(), ac);
 			log.info("本地端口：" + chn.socket().getLocalPort());
 		}
@@ -46,5 +46,11 @@ public class NIOClient {
 		for (AbstractConnection ac : all) {
 			ac.stop();
 		}
+	}
+	
+	public void delConnection(ServerEndpoint ser){
+		String address = ser.getAddress();
+		GlobalConnectionCache.remove(address);
+		ser.stop();
 	}
 }
